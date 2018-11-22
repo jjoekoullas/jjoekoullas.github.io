@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>J. Joe Koullas - io-ts; or Money for nothing and validation for free</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <link rel="stylesheet" type="text/css" href="../css/tango.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">J. Joe Koullas</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+                <a href="../rss.xml">RSS</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>io-ts; or Money for nothing and validation for free</h1>
+
+            <div class="info">
+    Posted on November 21, 2018
+    
+</div>
+
+<p><em>This post assumes familiarity with TypeScript.</em></p>
+<h2 id="motivation">Motivation</h2>
+<p>One of the caveats of TypeScript is the ability for the compile-time type of a value to not match the run-time value. This is especially troublesome for values coming in from application boundaries (user input, external services, etc). Validating inputs at application boundaries is a good idea, to the point of being a programming truism - that said there are better and worse ways to do so. <a href="https://github.com/gcanti/io-ts">io-ts</a> is one of the better ways.</p>
+<h2 id="the-problem">The Problem</h2>
+<p>Consider the following type:</p>
+<pre class="typescript"><code>interface myInterface {
+   name: string,
+   value: number
+}</code></pre>
+<p>This is fairly easy to validate with a little bit of code. <em>(Please note I’m taking liberties and assuming !!value returns true for values that are not null or undefined - I’m ignoring weird falsiness behavior out of expediency in explanation over correctness)</em></p>
+<pre class="typescript"><code>const validateMyInterface = (maybeMyInterface) =&gt;
+    !!maybeMyInterface
+    &amp;&amp; !!maybeMyInterface.name
+    &amp;&amp; maybeMyInterface.name instanceOf string
+    &amp;&amp; !!maybeMyInterface.value
+    &amp;&amp; maybeMyInterface.value instanceOf Number</code></pre>
+<p>That’s a fair bit of typing and some of these pieces look reusable, so maybe we break these down into smaller pieces and build up from there.</p>
+<pre class="typescript"><code>const validateExists = (maybeExists) =&gt;
+    maybeExists !== null
+    &amp;&amp; maybeExists !== undefined,
+  validateString = (maybeString) =&gt;
+    validateExists(maybeString)
+    &amp;&amp; maybeString instanceOf string,
+  validateNumber = (maybeNumber) =&gt;
+    validateExists(maybeNumber)
+    &amp;&amp; maybeNumber instanceOf Number,
+  validateMyInterface = (maybeMyInterface) =&gt;
+    validateExists(maybeMyInterface)
+    &amp;&amp; validateString(maybeMyInterface.name)
+    &amp;&amp; validateNumber(maybeMyInterface.value);</code></pre>
+<p>That’s nice, but surely somebody else has already done a lot of this legwork - it’s generic enough to assume this is a solved problem. Perhaps we’re wasting effort here - but that’s not the most troubling problem. What concerns me most is keeping the validator in sync with the actual type. If <code>myInterface</code> is updated, I will need to remember to update <code>validateMyInterface</code> as well. This means this solution hasn’t completely solved the problem of the compile-time type and the run-time value being different.</p>
+<h3 id="the-solution">The Solution</h3>
+<p><a href="https://github.com/gcanti/io-ts/blob/master/src/index.ts">io-ts</a> is the prior work to solve validating run-time values against compile time types. Even better, it can be used in a way that completely avoids the type and validator drifting apart.</p>
+<p>Once again, let’s write a validator for <code>myInterface</code>.</p>
+<pre class="typescript"><code>import * as t from 'io-ts'
+
+const myInterfaceValidator = t.interface({
+  name: t.string,
+  value: t.number
+});</code></pre>
+<p>That looks strikingly similar to the interface declaration. Here it is again so we can see them side by side:</p>
+<pre class="typescript"><code>interface myInterface {
+  name: string
+  value: number
+}</code></pre>
+<p>It’s still possible for the validator to drift from the type definition though. io-ts is savvy enough to give us a way to allow us to generate both the validator and the type from the same code.</p>
+<pre class="typescript"><code>interface myInterface extends t.TypeOf&lt;typeof myInterfaceValidator&gt; {}</code></pre>
+<p>Just like that, validator and type definition are created at once and can never drift apart.</p>
+<h2 id="usage-example">Usage Example</h2>
+<pre class="typescript"><code>import * as t from 'io-ts'
+import {ThrowReporter} from 'io-ts/lib/ThrowReporter'
+
+const tMyInterface = t.interface({
+    name: t.string,
+    value: t.number
+});
+
+export interface MyInterface extends t.TypeOf&lt;typeof tMyInterface&gt; {}
+
+const maybeMyInterface = {},
+    validationResult = tMyInterface.decode(maybeMyInterface);
+
+//throws an exception if validation doesn't pass
+ThrowReporter.report(validationResult);
+
+console.log(validationResult.value);</code></pre>
+<p><code>validationResult</code> is an <code>Either</code> value, and does not strictly need to be passed through a Reporter. It is possible to inspect the result, using <code>isLeft()</code> and <code>isRight()</code> functions and take whatever action is appropriate for the use case.</p>
+<h2 id="references">References</h2>
+<p><a href="https://github.com/gcanti/io-ts">io-ts</a> <a href="https://lorefnon.tech/2018/03/25/typescript-and-validations-at-runtime-boundaries/">Lorefnon - TypeScript and validations at runtime boundaries</a> <a href="https://github.com/gcanti/fp-ts/blob/master/docs/Either.md">fp-ts documentation - Either</a></p>
+
+        </div>
+        <div id="footer">
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>

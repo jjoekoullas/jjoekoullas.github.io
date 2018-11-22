@@ -184,5 +184,87 @@
 <p>The only real downside is we have to know the types we want beforehand. So it’s great for homework problems where the types are provided and working in existing code bases where we may not be completely familiar with how the types fit together.</p>
 ]]></summary>
 </entry>
+<entry>
+    <title>io-ts; or Money for nothing and validation for free</title>
+    <link href="http://jjoekoullas.github.io/posts/2018-11-21-io-ts.html" />
+    <id>http://jjoekoullas.github.io/posts/2018-11-21-io-ts.html</id>
+    <published>2018-11-21T00:00:00Z</published>
+    <updated>2018-11-21T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on November 21, 2018
+    
+</div>
+
+<p><em>This post assumes familiarity with TypeScript.</em></p>
+<h2 id="motivation">Motivation</h2>
+<p>One of the caveats of TypeScript is the ability for the compile-time type of a value to not match the run-time value. This is especially troublesome for values coming in from application boundaries (user input, external services, etc). Validating inputs at application boundaries is a good idea, to the point of being a programming truism - that said there are better and worse ways to do so. <a href="https://github.com/gcanti/io-ts">io-ts</a> is one of the better ways.</p>
+<h2 id="the-problem">The Problem</h2>
+<p>Consider the following type:</p>
+<pre class="typescript"><code>interface myInterface {
+   name: string,
+   value: number
+}</code></pre>
+<p>This is fairly easy to validate with a little bit of code. <em>(Please note I’m taking liberties and assuming !!value returns true for values that are not null or undefined - I’m ignoring weird falsiness behavior out of expediency in explanation over correctness)</em></p>
+<pre class="typescript"><code>const validateMyInterface = (maybeMyInterface) =&gt;
+    !!maybeMyInterface
+    &amp;&amp; !!maybeMyInterface.name
+    &amp;&amp; maybeMyInterface.name instanceOf string
+    &amp;&amp; !!maybeMyInterface.value
+    &amp;&amp; maybeMyInterface.value instanceOf Number</code></pre>
+<p>That’s a fair bit of typing and some of these pieces look reusable, so maybe we break these down into smaller pieces and build up from there.</p>
+<pre class="typescript"><code>const validateExists = (maybeExists) =&gt;
+    maybeExists !== null
+    &amp;&amp; maybeExists !== undefined,
+  validateString = (maybeString) =&gt;
+    validateExists(maybeString)
+    &amp;&amp; maybeString instanceOf string,
+  validateNumber = (maybeNumber) =&gt;
+    validateExists(maybeNumber)
+    &amp;&amp; maybeNumber instanceOf Number,
+  validateMyInterface = (maybeMyInterface) =&gt;
+    validateExists(maybeMyInterface)
+    &amp;&amp; validateString(maybeMyInterface.name)
+    &amp;&amp; validateNumber(maybeMyInterface.value);</code></pre>
+<p>That’s nice, but surely somebody else has already done a lot of this legwork - it’s generic enough to assume this is a solved problem. Perhaps we’re wasting effort here - but that’s not the most troubling problem. What concerns me most is keeping the validator in sync with the actual type. If <code>myInterface</code> is updated, I will need to remember to update <code>validateMyInterface</code> as well. This means this solution hasn’t completely solved the problem of the compile-time type and the run-time value being different.</p>
+<h3 id="the-solution">The Solution</h3>
+<p><a href="https://github.com/gcanti/io-ts/blob/master/src/index.ts">io-ts</a> is the prior work to solve validating run-time values against compile time types. Even better, it can be used in a way that completely avoids the type and validator drifting apart.</p>
+<p>Once again, let’s write a validator for <code>myInterface</code>.</p>
+<pre class="typescript"><code>import * as t from &#39;io-ts&#39;
+
+const myInterfaceValidator = t.interface({
+  name: t.string,
+  value: t.number
+});</code></pre>
+<p>That looks strikingly similar to the interface declaration. Here it is again so we can see them side by side:</p>
+<pre class="typescript"><code>interface myInterface {
+  name: string
+  value: number
+}</code></pre>
+<p>It’s still possible for the validator to drift from the type definition though. io-ts is savvy enough to give us a way to allow us to generate both the validator and the type from the same code.</p>
+<pre class="typescript"><code>interface myInterface extends t.TypeOf&lt;typeof myInterfaceValidator&gt; {}</code></pre>
+<p>Just like that, validator and type definition are created at once and can never drift apart.</p>
+<h2 id="usage-example">Usage Example</h2>
+<pre class="typescript"><code>import * as t from &#39;io-ts&#39;
+import {ThrowReporter} from &#39;io-ts/lib/ThrowReporter&#39;
+
+const tMyInterface = t.interface({
+    name: t.string,
+    value: t.number
+});
+
+export interface MyInterface extends t.TypeOf&lt;typeof tMyInterface&gt; {}
+
+const maybeMyInterface = {},
+    validationResult = tMyInterface.decode(maybeMyInterface);
+
+//throws an exception if validation doesn&#39;t pass
+ThrowReporter.report(validationResult);
+
+console.log(validationResult.value);</code></pre>
+<p><code>validationResult</code> is an <code>Either</code> value, and does not strictly need to be passed through a Reporter. It is possible to inspect the result, using <code>isLeft()</code> and <code>isRight()</code> functions and take whatever action is appropriate for the use case.</p>
+<h2 id="references">References</h2>
+<p><a href="https://github.com/gcanti/io-ts">io-ts</a> <a href="https://lorefnon.tech/2018/03/25/typescript-and-validations-at-runtime-boundaries/">Lorefnon - TypeScript and validations at runtime boundaries</a> <a href="https://github.com/gcanti/fp-ts/blob/master/docs/Either.md">fp-ts documentation - Either</a></p>
+]]></summary>
+</entry>
 
 </feed>
